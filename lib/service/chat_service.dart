@@ -4,6 +4,7 @@ import 'package:get/get.dart'; // Import GetX package
 class SocketService with SocketMixin {
   RxBool isLoading = false.obs; // RxBool to track loading state
   RxBool isConnect = false.obs; // RxBool to track loading state
+  Rxn<SocketErrorType> socketError = Rxn<SocketErrorType>(); // Rx Socket Error
 
   SocketService();
 
@@ -27,9 +28,9 @@ class SocketService with SocketMixin {
   /// Handle any socket errors based on error type
   @override
   void _handleSocketError(SocketErrorType errorType, String errorMessage) {
-    // Handle the error and set loading to false
     _updateLoadingState(false);
     _updateConnectState(false);
+    _updateSocketErrorState(errorType);
     super.handleSocketError(errorType, errorMessage);
   }
 
@@ -41,6 +42,11 @@ class SocketService with SocketMixin {
   /// Updates the Connection state
   void _updateConnectState(bool loading) {
     isLoading.value = loading; // Set the value of the RxBool
+  }
+
+  /// Updates the Error State
+  void _updateSocketErrorState(SocketErrorType socketErrorType) {
+    socketError.value = socketErrorType;
   }
 
   /// Updates connection state when connected
