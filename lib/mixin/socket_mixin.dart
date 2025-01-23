@@ -1,6 +1,8 @@
+import 'package:chat_socket/utils/logger.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:connectivity_plus/connectivity_plus.dart';
 
+/// All Error types
 enum SocketErrorType {
   connectionError,
   disconnectError,
@@ -43,21 +45,23 @@ mixin SocketMixin {
     );
 
     if (socket != null) {
-      socket!.on('connect', (_) {
+
+      socket!.onError((error) async {
+        handleSocketError(SocketErrorType.connectionError, 'Socket connection error: $error');
+        reconnectWithBackoff();
+      });
+
+      socket!.onConnect((_) {
         _reconnectAttempts = 0; // Reset attempts on successful connection
+        logger.i("socket is connected");
         print('Socket connected');
       });
 
-      socket!.on('disconnect', (reason) {
+      socket!.onDisconnect((reason) {
         handleSocketError(SocketErrorType.disconnectError, 'Socket disconnected: $reason');
         if (!_forceDisconnect) {
           reconnectWithBackoff();
         }
-      });
-
-      socket!.on('connect_error', (error) {
-        handleSocketError(SocketErrorType.connectionError, 'Socket connection error: $error');
-        reconnectWithBackoff();
       });
 
       socket!.connect();

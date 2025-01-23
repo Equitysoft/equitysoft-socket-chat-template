@@ -128,6 +128,12 @@
       "languageVersion": "3.6"
     },
     {
+      "name": "logger",
+      "rootUri": "file:///C:/Users/Delll/AppData/Local/Pub/Cache/hosted/pub.dev/logger-2.5.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.17"
+    },
+    {
       "name": "logging",
       "rootUri": "file:///C:/Users/Delll/AppData/Local/Pub/Cache/hosted/pub.dev/logging-1.3.0",
       "packageUri": "lib/",
@@ -260,7 +266,7 @@
       "languageVersion": "3.6"
     }
   ],
-  "generated": "2025-01-22T09:52:02.075175Z",
+  "generated": "2025-01-23T06:53:59.136324Z",
   "generator": "pub",
   "generatorVersion": "3.6.0",
   "flutterRoot": "file:///C:/src/flutter",
