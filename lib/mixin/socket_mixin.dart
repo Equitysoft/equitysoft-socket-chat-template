@@ -17,6 +17,8 @@ mixin SocketMixin {
   bool _forceDisconnect = false;
   late String _socketUrl = ""; // Replace with your socket server URL
 
+  final Map<String, Function(dynamic)> _eventListeners = {};
+
   /// Exponential backoff parameters
   int _reconnectAttempts = 0;
   final int _maxReconnectAttempts = 10;
@@ -111,6 +113,14 @@ mixin SocketMixin {
     }
   }
 
+  /// Re-register all event listeners
+  void _reRegisterEvents() {
+    _eventListeners.forEach((event, callback) {
+      socket?.on(event, callback); // Re-register event
+    });
+    print("Re-registered all socket events");
+  }
+
   /// Emits an event through the socket
   void emitEvent(String event, dynamic data) {
     if (socket != null && socket!.connected) {
@@ -122,10 +132,9 @@ mixin SocketMixin {
 
   /// Listens to an event from the socket
   void onEvent(String event, Function(dynamic) callback) {
+    _eventListeners[event] = callback; // Store event and callback
     if (socket != null) {
-      socket!.on(event, callback);
-    } else {
-      handleSocketError(SocketErrorType.unknownError, 'Cannot listen, socket is not initialized');
+      socket!.on(event, callback); // Register event with the socket
     }
   }
 
@@ -139,6 +148,7 @@ mixin SocketMixin {
   void disposeSocket() {
     disconnectSocket();
     socket = null;
+    _eventListeners.clear();
   }
 }
 
