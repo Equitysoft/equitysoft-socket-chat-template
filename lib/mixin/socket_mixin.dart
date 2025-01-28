@@ -1,8 +1,7 @@
-import 'package:chat_socket/utils/logger.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:connectivity_plus/connectivity_plus.dart';
 
-/// All Error types
+/// Error types for socket handling
 enum SocketErrorType {
   connectionError,
   disconnectError,
@@ -15,16 +14,16 @@ mixin SocketMixin {
   IO.Socket? socket;
   bool _isConnecting = false;
   bool _forceDisconnect = false;
-  late String _socketUrl = ""; // Replace with your socket server URL
+  late String _socketUrl;
 
   final Map<String, Function(dynamic)> _eventListeners = {};
 
-  /// Exponential backoff parameters
+  /// Reconnection logic parameters
   int _reconnectAttempts = 0;
-  final int _maxReconnectAttempts = 10;
+  final int _maxReconnectAttempts = 5;
   final Duration _baseReconnectDelay = Duration(seconds: 2);
 
-  /// Initializes the socket connection
+  /// Initialize the socket connection
   void initializeSocket({required String socketUrl}) {
     _socketUrl = socketUrl;
     connectToSocket();
@@ -39,127 +38,121 @@ mixin SocketMixin {
     socket = IO.io(
       _socketUrl,
       IO.OptionBuilder()
-          .setTransports(['websocket'])
-          .disableAutoConnect()         // Disable auto-connect
-          .setRememberUpgrade(false)  // Disable default reconnection
-          .setReconnectionAttempts(10)
+          .setTransports(['websocket']) // Use WebSocket
+          .disableAutoConnect() // Disable automatic connection
+          .setReconnectionAttempts(0) // Disable built-in reconnection
           .build(),
     );
 
     if (socket != null) {
+      socket!.onConnect((_) {
+        _isConnecting = false; // Reset connecting flag
+        _reconnectAttempts = 0; // Reset reconnect attempts
+        _reRegisterEvents();
+        print("Socket connected.");
+      });
 
-      socket!.onError((error) async {
-        handleSocketError(SocketErrorType.connectionError, 'Socket connection error: $error');
+      socket!.onError((error) {
+        _isConnecting = false;
+        print("Socket error: $error");
+        handleSocketError(SocketErrorType.connectionError, "Socket connection error: $error");
         reconnectWithBackoff();
       });
 
-      socket!.onConnect((_) {
-        _reconnectAttempts = 0; // Reset attempts on successful connection
-        _reRegisterEvents();
-        logger.i("socket is connected");
-      });
-
       socket!.onDisconnect((reason) {
-        handleSocketError(SocketErrorType.disconnectError, 'Socket disconnected: $reason');
+        _isConnecting = false;
+        print("Socket disconnected: $reason");
+        handleSocketError(SocketErrorType.disconnectError, "Socket disconnected: $reason");
         if (!_forceDisconnect) {
           reconnectWithBackoff();
         }
       });
 
       socket!.connect();
+    } else {
+      _isConnecting = false;
+      handleSocketError(SocketErrorType.unknownError, "Failed to initialize socket.");
     }
-
-    _isConnecting = false;
   }
 
-  /// Reconnect logic with exponential backoff
+  /// Reconnect using exponential backoff
   void reconnectWithBackoff() {
-    if (_reconnectAttempts >= _maxReconnectAttempts) {
-      handleSocketError(SocketErrorType.maxReconnectAttemptsReached, 'Max reconnect attempts reached');
+    if (_reconnectAttempts >= _maxReconnectAttempts || _forceDisconnect) {
+      handleSocketError(SocketErrorType.maxReconnectAttemptsReached, "Max reconnect attempts reached.");
       return;
     }
 
-    final delay = _baseReconnectDelay * (_reconnectAttempts + 1);
     _reconnectAttempts++;
+    final delay = _baseReconnectDelay * _reconnectAttempts;
 
     Future.delayed(delay, () {
       if (!_forceDisconnect) {
+        print("Attempting to reconnect... (Attempt: $_reconnectAttempts)");
         connectToSocket();
       }
     });
   }
 
-  /// Monitors internet connectivity and reconnects the socket if needed
+  /// Monitor internet connection status
   void _monitorInternetConnection() {
     Connectivity().onConnectivityChanged.listen((connectivityResult) {
+      if (_forceDisconnect) return;
       if (connectivityResult != ConnectivityResult.none) {
-        print('Internet connected');
+        print("Internet connected.");
         if (socket == null || !(socket!.connected)) {
           connectToSocket();
         }
       } else {
-        handleSocketError(SocketErrorType.internetError, 'Internet disconnected');
+        handleSocketError(SocketErrorType.internetError, "Internet disconnected.");
       }
     });
   }
 
-  /// Disconnects the socket forcefully
+  /// Disconnect the socket
   void disconnectSocket() {
     _forceDisconnect = true;
+    _isConnecting = false;
     if (socket != null) {
       socket!.disconnect();
       socket!.close();
-      print('Socket forcefully disconnected');
+      socket = null;
     }
+    print("Socket forcefully disconnected.");
   }
 
   /// Re-register all event listeners
   void _reRegisterEvents() {
     _eventListeners.forEach((event, callback) {
-      print("Re-registered all socket events : ${event}");
-      socket?.on(event, callback); // Re-register event
+      socket?.off(event); // Remove duplicate listeners
+      socket?.on(event, callback);
+      print("Re-registered event: $event");
     });
   }
 
-  /// Emits an event through the socket
+  /// Emit an event
   void emitEvent(String event, dynamic data) {
     if (socket != null && socket!.connected) {
       socket!.emit(event, data);
     } else {
-      handleSocketError(SocketErrorType.unknownError, 'Cannot emit, socket is not connected');
+      handleSocketError(SocketErrorType.unknownError, "Cannot emit event, socket is not connected.");
     }
   }
 
-  /// Listens to an event from the socket
+  /// Listen for an event
   void onEvent(String event, Function(dynamic) callback) {
-    _eventListeners[event] = callback; // Store event and callback
-    if (socket != null) {
-      socket!.on(event, callback); // Register event with the socket
-    }
+    _eventListeners[event] = callback;
+    socket?.on(event, callback);
   }
 
-  /// Handles errors and prints/logs them
+  /// Handle socket errors
   void handleSocketError(SocketErrorType errorType, String errorMessage) {
-    // You can throw custom exceptions or handle specific errors based on the type
-    throw SocketException(errorType, errorMessage);
+    print("Error [$errorType]: $errorMessage");
+    // Optionally, propagate the error to a listener or throw a custom exception
   }
 
-  /// Disposes of the socket and its resources
+  /// Dispose the socket resources
   void disposeSocket() {
     disconnectSocket();
-    socket = null;
     _eventListeners.clear();
-  }
-}
-
-class SocketException implements Exception {
-  final SocketErrorType type;
-  final String message;
-
-  SocketException(this.type, this.message);
-
-  @override
-  String toString() {
-    return 'SocketException: $message (ErrorType: $type)';
   }
 }

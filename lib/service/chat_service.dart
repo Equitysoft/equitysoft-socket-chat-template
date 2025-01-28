@@ -8,67 +8,23 @@ class SocketService with SocketMixin {
 
   SocketService();
 
-  /// Initializes the socket connection with a given URL
-  void initialize(String socketUrl) {
-    _updateConnectState(false);
-    _updateLoadingState(true); // Set loading to true before initiating connection
-    initializeSocket(socketUrl: socketUrl); // Call the method to start the connection
+  /// Initialize the socket connection with a specific URL
+  void initialize(String url) {
+    initializeSocket(socketUrl: url);
   }
 
-  /// Emits a message through the socket
-  void emitMessage(String event, dynamic data) {
-    emitEvent(event, data);
-  }
-
-  /// Listens to a socket event and processes the callback
+  /// Register a custom event listener
   void listenToEvent(String event, Function(dynamic) callback) {
     onEvent(event, callback);
   }
 
-  /// Handle any socket errors based on error type
-  @override
-  void _handleSocketError(SocketErrorType errorType, String errorMessage) {
-    _updateLoadingState(false);
-    _updateConnectState(false);
-    _updateSocketErrorState(errorType);
-    super.handleSocketError(errorType, errorMessage);
+  /// Emit a custom event
+  void emitMessage(String event, dynamic data) {
+    emitEvent(event, data);
   }
 
-  /// Updates the loading state
-  void _updateLoadingState(bool loading) {
-    isLoading.value = loading; // Set the value of the RxBool
-  }
-
-  /// Updates the Connection state
-  void _updateConnectState(bool loading) {
-    isLoading.value = loading; // Set the value of the RxBool
-  }
-
-  /// Updates the Error State
-  void _updateSocketErrorState(SocketErrorType socketErrorType) {
-    socketError.value = socketErrorType;
-  }
-
-  /// Updates connection state when connected
-  @override
-  void _connectToSocket() {
-    super.connectToSocket();
-    if (socket?.connected ?? false) {
-      _updateLoadingState(false); // Set loading to false when connected
-      _updateConnectState(true);
-    }
-  }
-
-  /// Updates reconnection state when reconnecting
-  @override
-  void _reconnectWithBackoff() {
-    super.reconnectWithBackoff();
-    _updateLoadingState(true); // Set loading to true during reconnection attempts
-    _updateConnectState(false);
-  }
-
-  /// Dispose of the socket connection
-  void dispose() {
-    disconnectSocket();
+  /// Clean up resources
+  void closeConnection() {
+    disposeSocket();
   }
 }
