@@ -116,9 +116,9 @@ mixin SocketMixin {
   /// Re-register all event listeners
   void _reRegisterEvents() {
     _eventListeners.forEach((event, callback) {
+      print("Re-registered all socket events : ${event}");
       socket?.on(event, callback); // Re-register event
     });
-    print("Re-registered all socket events");
   }
 
   /// Emits an event through the socket
