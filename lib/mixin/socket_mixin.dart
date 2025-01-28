@@ -55,8 +55,8 @@ mixin SocketMixin {
 
       socket!.onConnect((_) {
         _reconnectAttempts = 0; // Reset attempts on successful connection
+        _reRegisterEvents();
         logger.i("socket is connected");
-        print('Socket connected');
       });
 
       socket!.onDisconnect((reason) {
